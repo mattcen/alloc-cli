@@ -1,17 +1,19 @@
 # alloc library for outputting ascii or csv tables
 
-import sys
-import re
 import csv
 import functools
+import re
 import subprocess
-from prettytable import PrettyTable
+import sys
 from sys import stdout
+
+from prettytable import PrettyTable
 
 # Some changes to the PrettyTable API between 0.5 and 0.6, fix it up as required
 # https://code.google.com/p/prettytable/issues/detail?id=21
 # This can go if/when flora's OS is updated
-if 'set_field_names' not in dir(PrettyTable):
+if "set_field_names" not in dir(PrettyTable):
+
     def set_field_names(self, fields):
         # pass lint
         self.field_names = fields
@@ -19,25 +21,26 @@ if 'set_field_names' not in dir(PrettyTable):
     def set_field_align(self, field, align):
         # pass lint
         self.align[field] = align
+
     PrettyTable.set_field_names = set_field_names
     PrettyTable.set_field_align = set_field_align
 
 
 class alloc_output_handler:
-
     """alloc library for outputting ascii or csv tables"""
 
     def __get_only_these_fields(self, alloc, entity, rows, only_these_fields):
         """Reduce a list by removing certain columns/fields."""
         rtn = []
         inverted_field_names = dict(
-            [[v, k] for k, v in alloc.field_names[entity].items()])
+            [[v, k] for k, v in alloc.field_names[entity].items()]
+        )
 
         # Print all fields
-        if 'all' in only_these_fields:
+        if "all" in only_these_fields:
             for k, v in rows.items():
                 for name, value in v.items():
-                    del(value)  # pylint
+                    del value  # pylint
                     rtn.append(name)
                     if name in alloc.field_names[entity]:
                         rtn.append(alloc.field_names[entity][name])
@@ -58,11 +61,13 @@ class alloc_output_handler:
 
     def __get_sorted_rows(self, alloc, entity, rows, sortby):
         """Sort the rows of a list."""
-        f = ''  # satisfy pylint
+        f = ""  # satisfy pylint
         rows = list(rows.items())
         if not sortby:
             return rows
-        inverted_field_names = dict([[v, k] for k, v in alloc.field_names[entity].items()])
+        inverted_field_names = dict(
+            [[v, k] for k, v in alloc.field_names[entity].items()]
+        )
 
         sortby.reverse()
 
@@ -72,7 +77,11 @@ class alloc_output_handler:
         # Check that any attempted sortby columns are actually in the table
         for k in sortby:
             # Strip leading underscore (used in reverse sorting eg: _Rate)
-            if k and re.sub("^_", "", k) not in fields and re.sub("^_", "", k) not in inverted_field_names:
+            if (
+                k
+                and re.sub("^_", "", k) not in fields
+                and re.sub("^_", "", k) not in inverted_field_names
+            ):
                 alloc.err("Sort column not found: " + k)
 
         def sort_func(row):
@@ -83,7 +92,7 @@ class alloc_output_handler:
                 try:
                     val = row[1][inverted_field_names[f]]
                 except Exception:
-                    return ''
+                    return ""
 
             # val is the actual value in the field
             try:
@@ -110,15 +119,14 @@ class alloc_output_handler:
             except TypeError:
                 return str(type(x)) < str(type(y))
 
-
         for f in sortby:
             reverse = False
             if f and f[0] == "_":
                 reverse = True
                 f = f[1:]  # chop leading underscore
             rows.sort(
-                reverse=reverse,
-                key=functools.cmp_to_key(bullshit_compare_function))
+                reverse=reverse, key=functools.cmp_to_key(bullshit_compare_function)
+            )
         return rows
 
     def __get_widest_field_lengths(self, rows, field_names):
@@ -143,14 +151,14 @@ class alloc_output_handler:
         """Truncate the final column in a table so that it fits on the screen."""
 
         # We only truncate the rows if we've been configured to
-        if 'alloc_trunc' not in alloc.config or not alloc.config['alloc_trunc']:
+        if "alloc_trunc" not in alloc.config or not alloc.config["alloc_trunc"]:
             return rows
 
         lengths = self.__get_widest_field_lengths(rows, field_names)
         rows2 = []
         for row in rows:
-            s = ''
-            sep = ''
+            s = ""
+            sep = ""
             x = 0
             for v in row:
                 v = str(v)
@@ -160,26 +168,28 @@ class alloc_output_handler:
                 if len(v) < lengths[fn]:
                     v = v.ljust(lengths[fn])
                 s += sep + v
-                sep = ' | '
+                sep = " | "
                 x += 1
 
             # Simulate a normal row in the table
-            s = '| ' + s + ' |'
+            s = "| " + s + " |"
 
             # fn will be the final cell in the row
             sum_of_bits = 0
-            for k, l in lengths.items():
+            for k, v in lengths.items():
                 if k != fn:
-                    sum_of_bits += l + 3
+                    sum_of_bits += v + 3
 
             # If the row is wider than the width of the terminal
             if len(s) > width and sum_of_bits + len(fn) + 3 < width:
                 end = len(row) - 1
-                row[end] = row[end].ljust(lengths[fn])[:-(len(s) - width)]
+                row[end] = row[end].ljust(lengths[fn])[: -(len(s) - width)]
             rows2.append(row)
         return rows2
 
-    def print_table(self, alloc, entity, rows, only_these_fields, sort=False, transforms=None):
+    def print_table(
+        self, alloc, entity, rows, only_these_fields, sort=False, transforms=None
+    ):
         """For printing out results in an ascii table or CSV format."""
         if alloc.quiet:
             return
@@ -192,7 +202,8 @@ class alloc_output_handler:
             only_these_fields = [only_these_fields]
 
         only_these_fields = self.__get_only_these_fields(
-            alloc, entity, rows, only_these_fields)
+            alloc, entity, rows, only_these_fields
+        )
         field_names = only_these_fields[1::2]
 
         # Re-order the table, this changes the dict to a list i.e.
@@ -201,8 +212,7 @@ class alloc_output_handler:
         if rows:
             rows2 = []
             for k_, row in rows:
-                row = self.__get_row(
-                    alloc, entity, row, only_these_fields, transforms)
+                row = self.__get_row(alloc, entity, row, only_these_fields, transforms)
                 rows2.append(row)
             rows = rows2
 
@@ -219,20 +229,22 @@ class alloc_output_handler:
             table = PrettyTable()
             table.set_field_names(field_names)
             for label in field_names:
-                if '$' in label:
+                if "$" in label:
                     table.set_field_align(label, "r")
                 else:
                     table.set_field_align(label, "l")
 
             if stdout.isatty():
                 proc = subprocess.Popen(
-                    ['stty', 'size'], stdout=subprocess.PIPE, stderr=open("/dev/null", "w"))
+                    ["stty", "size"],
+                    stdout=subprocess.PIPE,
+                    stderr=open("/dev/null", "w"),
+                )
                 ret = proc.wait()
                 if ret == 0:
                     height_, width = proc.communicate()[0].split()
                     width = int(width)
-                    rows = self.__fit_rows_to_screen(
-                        alloc, rows, field_names, width)
+                    rows = self.__fit_rows_to_screen(alloc, rows, field_names, width)
             for row in rows:
                 table.add_row(row)
             print(table.get_string(header=True))
@@ -243,7 +255,7 @@ class alloc_output_handler:
         """Load up the items for one row for a pretty table or csv output."""
         r = []
         for v in only_these_fields[::2]:
-            value = ''
+            value = ""
             success = False
 
             if v in row:
@@ -273,10 +285,10 @@ class alloc_output_handler:
                     success = True
 
             if not success:
-                alloc.err('Bad field name: ' + str(v))
+                alloc.err("Bad field name: " + str(v))
 
             if not value:
-                value = ''
+                value = ""
 
             r.append(value)
         return r

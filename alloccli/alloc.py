@@ -1,207 +1,205 @@
 """alloc library"""
 
-import os
-import sys
-import simplejson
-import re
-import urllib.request, urllib.parse, urllib.error
-import datetime
 import configparser
+import datetime
+import os
+import re
 import subprocess
+import sys
+import urllib.error
+import urllib.parse
+import urllib.request
+from collections import defaultdict
 from netrc import netrc
 from urllib.parse import urlparse
-from collections import defaultdict
-from .alloc_output_handler import alloc_output_handler
+
+import simplejson
+
 from .alloc_cli_arg_handler import alloc_cli_arg_handler
+from .alloc_output_handler import alloc_output_handler
 
 
 class alloc(object):
-
     """Provide a parent class from which the alloc subcommands can extend"""
 
     client_version = "1.8.9"
-    url = ''
-    username = ''
-    quiet = ''
-    dryrun = ''
-    sessID = ''
-    alloc_dir = os.environ.get('ALLOC_HOME') or os.path.join(os.environ['HOME'], '.alloc')
-    debug = os.environ.get('ALLOC_DEBUG')
+    url = ""
+    username = ""
+    quiet = ""
+    dryrun = ""
+    sessID = ""
+    alloc_dir = os.environ.get("ALLOC_HOME") or os.path.join(
+        os.environ["HOME"], ".alloc"
+    )
+    debug = os.environ.get("ALLOC_DEBUG")
     config = {}
     user_transforms = {}
     url_opener = None
-    username = ''
-    password = ''
-    http_username = ''
-    http_password = ''
+    username = ""
+    password = ""
+    http_username = ""
+    http_password = ""
     field_names = {
         "task": {
-            "taskID":                       "ID",
-            "taskTypeID":                   "Type",
-            "taskStatusLabel":              "Status",
-            "taskStatusColour":             "Colour",
-            "priority":                     "Task Pri",
-            "projectPriority":              "Proj Pri",
-            "priorityFactor":               "Pri Factor",
-            "priorityLabel":                "Priority",
-            "rate":                         "Rate",
-            "projectName":                  "Project",
-            "taskName":                     "Task",
-            "taskDescription":              "Description",
-            "creator_name":                 "Creator",
-            "manager_name":                 "Manager",
-            "assignee_name":                "Assigned",
-            "projectShortName":             "Proj Nick",
-            "currency":                     "Curr",
-            "timeActualLabel":              "Act Label",
-            "timeBest":                     "Best",
-            "timeWorst":                    "Worst",
-            "timeExpected":                 "Est",
-            "timeLimit":                    "Limit",
-            "timeActual":                   "Act",
-            "dateTargetCompletion":         "Targ Compl",
-            "dateTargetStart":              "Targ Start",
-            "dateActualCompletion":         "Act Compl",
-            "dateActualStart":              "Act Start",
-            "taskStatus":                   "Stat",
-            "dateAssigned":                 "Date Assigned",
-            "project_name":                 "Proj Name",
-            "dateClosed":                   "Closed",
-            "dateCreated":                  "Created",
-            "tags":                         "Tags"
+            "taskID": "ID",
+            "taskTypeID": "Type",
+            "taskStatusLabel": "Status",
+            "taskStatusColour": "Colour",
+            "priority": "Task Pri",
+            "projectPriority": "Proj Pri",
+            "priorityFactor": "Pri Factor",
+            "priorityLabel": "Priority",
+            "rate": "Rate",
+            "projectName": "Project",
+            "taskName": "Task",
+            "taskDescription": "Description",
+            "creator_name": "Creator",
+            "manager_name": "Manager",
+            "assignee_name": "Assigned",
+            "projectShortName": "Proj Nick",
+            "currency": "Curr",
+            "timeActualLabel": "Act Label",
+            "timeBest": "Best",
+            "timeWorst": "Worst",
+            "timeExpected": "Est",
+            "timeLimit": "Limit",
+            "timeActual": "Act",
+            "dateTargetCompletion": "Targ Compl",
+            "dateTargetStart": "Targ Start",
+            "dateActualCompletion": "Act Compl",
+            "dateActualStart": "Act Start",
+            "taskStatus": "Stat",
+            "dateAssigned": "Date Assigned",
+            "project_name": "Proj Name",
+            "dateClosed": "Closed",
+            "dateCreated": "Created",
+            "tags": "Tags",
         },
-
         "timeSheet": {
-            "timeSheetID":                  "ID",
-            "dateFrom":                     "From",
-            "dateTo":                       "To",
-            "status":                       "Status",
-            "person":                       "Owner",
-            "duration":                     "Duration",
-            "totalHours":                   "Hrs",
-            "amount":                       "Amount",
-            "projectName":                  "Project",
-            "currencyTypeID":               "Currency",
-            "customerBilledDollars":        "Bill",
-            "dateRejected":                 "Rejected",
-            "dateSubmittedToManager":       "Submitted",
-            "dateSubmittedToAdmin":         "Submitted Admin",
-            "invoiceDate":                  "Invoiced",
-            "billingNote":                  "Notes",
-            "recipient_tfID":               "TFID",
-            "commentPrivate":               "Comm Priv"
+            "timeSheetID": "ID",
+            "dateFrom": "From",
+            "dateTo": "To",
+            "status": "Status",
+            "person": "Owner",
+            "duration": "Duration",
+            "totalHours": "Hrs",
+            "amount": "Amount",
+            "projectName": "Project",
+            "currencyTypeID": "Currency",
+            "customerBilledDollars": "Bill",
+            "dateRejected": "Rejected",
+            "dateSubmittedToManager": "Submitted",
+            "dateSubmittedToAdmin": "Submitted Admin",
+            "invoiceDate": "Invoiced",
+            "billingNote": "Notes",
+            "recipient_tfID": "TFID",
+            "commentPrivate": "Comm Priv",
         },
-
         "timeSheetItem": {
-            "timeSheetID":                  "ID",
-            "timeSheetItemID":              "Item ID",
-            "dateTimeSheetItem":            "Date",
-            "taskID":                       "Task ID",
-            "comment":                      "Comment",
-            "timeSheetItemDuration":        "Hours",
-            "rate":                         "Rate",
-            "worth":                        "Worth",
-            "hoursBilled":                  "Total",
-            "timeLimit":                    "Limit",
-            "limitWarning":                 "Warning",
-            "description":                  "Desc",
-            "secondsBilled":                "Seconds",
-            "multiplier":                   "Mult",
-            "approvedByManagerPersonID":    "Managed",
-            "approvedByAdminPersonID":      "Admin"
+            "timeSheetID": "ID",
+            "timeSheetItemID": "Item ID",
+            "dateTimeSheetItem": "Date",
+            "taskID": "Task ID",
+            "comment": "Comment",
+            "timeSheetItemDuration": "Hours",
+            "rate": "Rate",
+            "worth": "Worth",
+            "hoursBilled": "Total",
+            "timeLimit": "Limit",
+            "limitWarning": "Warning",
+            "description": "Desc",
+            "secondsBilled": "Seconds",
+            "multiplier": "Mult",
+            "approvedByManagerPersonID": "Managed",
+            "approvedByAdminPersonID": "Admin",
         },
-
         "transaction": {
-            "transactionID":                "ID",
-            "fromTfName":                   "From TF",
-            "tfName":                       "Dest TF",
-            "amount":                       "Amount",
-            "status":                       "Status",
-            "transactionDate":              "Transaction Date"
+            "transactionID": "ID",
+            "fromTfName": "From TF",
+            "tfName": "Dest TF",
+            "amount": "Amount",
+            "status": "Status",
+            "transactionDate": "Transaction Date",
         },
-
-        "tf": {
-            "tfID":                         "ID",
-            "tfBalancePending":             "Pending",
-            "tfBalance":                    "Approved"
-        },
-
-        "client": {
-            "clientID":                     "ID",
-            "clientName":                   "Name"
-        },
-
-        "token": {
-            "tokenID":                      "ID",
-            "tokenHash":                    "Key"
-        },
-
+        "tf": {"tfID": "ID", "tfBalancePending": "Pending", "tfBalance": "Approved"},
+        "client": {"clientID": "ID", "clientName": "Name"},
+        "token": {"tokenID": "ID", "tokenHash": "Key"},
         "interestedParty": {
-            "interestedPartyID":            "ID",
-            "entity":                       "Entity",
-            "entityID":                     "Entity ID",
-            "fullName":                     "Name",
-            "emailAddress":                 "Email"
+            "interestedPartyID": "ID",
+            "entity": "Entity",
+            "entityID": "Entity ID",
+            "fullName": "Name",
+            "emailAddress": "Email",
         },
-
         "person": {
-            "personID":                     "ID",
-            "firstName":                    "First Name",
-            "surname":                      "Surname",
-            "username":                     "Username",
-            "emailAddress":                 "Email"
+            "personID": "ID",
+            "firstName": "First Name",
+            "surname": "Surname",
+            "username": "Username",
+            "emailAddress": "Email",
         },
-
-        "project": {
-            "projectID":                    "ID",
-            "projectName":                  "Proj Name"
-        },
-
+        "project": {"projectID": "ID", "projectName": "Proj Name"},
         "invoice": {
-            "invoiceID":                    "ID",
-            "clientName":                   "Client",
-            "invoiceNum":                   "Num",
-            "invoiceDateFrom":              "From",
-            "invoiceDateTo":                "To",
-            "invoiceStatus":                "Status",
-            "status_label":                 "Payment",
-            "amountPaidRejected":           "Rejected",
-            "amountPaidPending":            "Pending",
-            "amountPaidApproved":           "Approved",
-            "iiAmountSum":                  "Total"
+            "invoiceID": "ID",
+            "clientName": "Client",
+            "invoiceNum": "Num",
+            "invoiceDateFrom": "From",
+            "invoiceDateTo": "To",
+            "invoiceStatus": "Status",
+            "status_label": "Payment",
+            "amountPaidRejected": "Rejected",
+            "amountPaidPending": "Pending",
+            "amountPaidApproved": "Approved",
+            "iiAmountSum": "Total",
         },
-
         "invoiceItem": {
-            "invoiceID":                    "ID",
-            "invoiceItemID":                "Item ID",
-            "clientName":                   "Client",
-            "invoiceNum":                   "Num",
-            "iiDate":                       "Date",
-            "iiAmount":                     "Amount",
-            "iiQuantity":                   "Qty",
-            "iiUnitPrice":                  "Per unit",
-            "iiMemo":                       "Comment"
+            "invoiceID": "ID",
+            "invoiceItemID": "Item ID",
+            "clientName": "Client",
+            "invoiceNum": "Num",
+            "iiDate": "Date",
+            "iiAmount": "Amount",
+            "iiQuantity": "Qty",
+            "iiUnitPrice": "Per unit",
+            "iiMemo": "Comment",
         },
-
         "reminder": {
-            "reminderID":                   "ID",
-            "reminderSubject":              "Subject",
-            "reminderActive":               "Active",
-            "link":                         "Entity",
-            "frequency":                    "Frequency"
+            "reminderID": "ID",
+            "reminderSubject": "Subject",
+            "reminderActive": "Active",
+            "link": "Entity",
+            "frequency": "Frequency",
             # Plug in the target object
         },
     }
 
-    row_timeSheet = ["timeSheetID", "dateFrom", "dateTo", "status", "person",
-                     "duration", "totalHours", "amount", "projectName"]
+    row_timeSheet = [
+        "timeSheetID",
+        "dateFrom",
+        "dateTo",
+        "status",
+        "person",
+        "duration",
+        "totalHours",
+        "amount",
+        "projectName",
+    ]
 
-    row_timeSheetItem = ["timeSheetID", "timeSheetItemID", "dateTimeSheetItem",
-                         "taskID", "timeSheetItemDuration", "rate", "worth",
-                         "hoursBilled", "timeLimit", "limitWarning", "comment"]
+    row_timeSheetItem = [
+        "timeSheetID",
+        "timeSheetItemID",
+        "dateTimeSheetItem",
+        "taskID",
+        "timeSheetItemDuration",
+        "rate",
+        "worth",
+        "hoursBilled",
+        "timeLimit",
+        "limitWarning",
+        "comment",
+    ]
 
     def __init__(self):
-
         # Grab a storage dir to work in
         # if seccond last charator self.alloc_dir is not /, add a /
         if self.alloc_dir[-1:] != os.sep:
@@ -228,28 +226,28 @@ class alloc(object):
 
         # Permit environment variables to override ~/.alloc/config
         if os.environ.get("ALLOC_URL"):
-            self.config['url'] = os.environ.get("ALLOC_URL")
+            self.config["url"] = os.environ.get("ALLOC_URL")
         if os.environ.get("ALLOC_USER"):
-            self.config['alloc_user'] = os.environ.get("ALLOC_USER")
+            self.config["alloc_user"] = os.environ.get("ALLOC_USER")
         if os.environ.get("ALLOC_PASS"):
-            self.config['alloc_pass'] = os.environ.get("ALLOC_PASS")
+            self.config["alloc_pass"] = os.environ.get("ALLOC_PASS")
         if os.environ.get("ALLOC_HTTP_USER"):
-            self.config['alloc_http_user'] = os.environ.get("ALLOC_HTTP_USER")
+            self.config["alloc_http_user"] = os.environ.get("ALLOC_HTTP_USER")
         if os.environ.get("ALLOC_HTTP_PASS"):
-            self.config['alloc_http_pass'] = os.environ.get("ALLOC_HTTP_PASS")
+            self.config["alloc_http_pass"] = os.environ.get("ALLOC_HTTP_PASS")
         if os.environ.get("ALLOC_TRUNC"):
-            self.config['alloc_trunc'] = os.environ.get("ALLOC_TRUNC")
+            self.config["alloc_trunc"] = os.environ.get("ALLOC_TRUNC")
 
-        if 'url' not in self.config or not self.config['url']:
+        if "url" not in self.config or not self.config["url"]:
             self.die("No alloc url specified!")
 
         # Grab session ~/.alloc/session
         if os.path.exists(self.alloc_dir + "session"):
             self.sessID = self.load_session(self.alloc_dir + "session")
 
-        self.url = self.config['url']
-        self.username = ''
-        self.quiet = ''
+        self.url = self.config["url"]
+        self.username = ""
+        self.quiet = ""
         self.csv = False
 
         for k, v in self.config.items():
@@ -262,14 +260,14 @@ class alloc(object):
             top_level_url = "/".join(self.url.split("/")[0:3])
             password_mgr = urllib.request.HTTPPasswordMgrWithDefaultRealm()
             password_mgr.add_password(
-                None, top_level_url, self.http_username, self.http_password)
+                None, top_level_url, self.http_username, self.http_password
+            )
             handler = urllib.request.HTTPBasicAuthHandler(password_mgr)
             self.url_opener = urllib.request.build_opener(handler)
         else:
             self.url_opener = urllib.request.build_opener()
 
-        self.url_opener.addheaders = [
-            ('User-agent', 'alloc-cli %s' % self.username)]
+        self.url_opener.addheaders = [("User-agent", "alloc-cli %s" % self.username)]
         urllib.request.install_opener(self.url_opener)
 
     def create_config(self, config_file):
@@ -283,7 +281,7 @@ class alloc(object):
         default += "\n#alloc_http_pass: $ALLOC_HTTP_PASS"
         default += "\n#alloc_trunc: 1"
         # Write it out to a file
-        write_config = open(config_file, 'w')
+        write_config = open(config_file, "w")
         write_config.write(default)
         write_config.close()
 
@@ -291,31 +289,38 @@ class alloc(object):
         """Read the ~/.alloc/config file and load it into self.config[]."""
         config = configparser.ConfigParser()
         config.read([config_file])
-        section = os.environ.get("ALLOC") or 'main'
+        section = os.environ.get("ALLOC") or "main"
         try:
             options = config.options(section)
             for option in options:
                 self.config[option.lower()] = config.get(section, option)
-            if 'ALLOC_TRUNC' in os.environ:
-                self.config['alloc_trunc'] = os.environ.get('ALLOC_TRUNC')
+            if "ALLOC_TRUNC" in os.environ:
+                self.config["alloc_trunc"] = os.environ.get("ALLOC_TRUNC")
         except Exception:
             pass
 
     def create_transforms(self, trans_file):
         """Create a default ~/.alloc/transforms.py file for field manipulation."""
-        if os.path.exists(self.alloc_dir + "transforms") and not os.path.exists(self.alloc_dir + "transforms.py"):
+        if os.path.exists(self.alloc_dir + "transforms") and not os.path.exists(
+            self.alloc_dir + "transforms.py"
+        ):
             # upgrade old transforms to transforms.py
-            self.dbg("Renaming: " + self.alloc_dir + "transforms" +
-                     " to " + self.alloc_dir + "transforms.py")
-            os.rename(
-                self.alloc_dir + "transforms", self.alloc_dir + "transforms.py")
+            self.dbg(
+                "Renaming: "
+                + self.alloc_dir
+                + "transforms"
+                + " to "
+                + self.alloc_dir
+                + "transforms.py"
+            )
+            os.rename(self.alloc_dir + "transforms", self.alloc_dir + "transforms.py")
         else:
             # else create an example transforms.py
             self.dbg("Creating example transforms.py file: " + trans_file)
             default = "# Add any field customisations here. eg:\n"
             default += "# user_transforms = { 'Priority' : lambda x,row: x[3:] }\n\n"
             # Write it out to a file
-            write_trans = open(trans_file, 'w')
+            write_trans = open(trans_file, "w")
             write_trans.write(default)
             write_trans.close()
 
@@ -324,6 +329,7 @@ class alloc(object):
         try:
             sys.path.append(self.alloc_dir)
             from transforms import user_transforms
+
             self.user_transforms = user_transforms
         except Exception:
             self.user_transforms = {}
@@ -334,7 +340,7 @@ class alloc(object):
         if not old_sessID or old_sessID != sessID:
             self.dbg("Writing to: " + self.alloc_dir + "session: " + sessID)
             # Write it out to a file
-            write_session = open(self.alloc_dir + "session", 'w')
+            write_session = open(self.alloc_dir + "session", "w")
             write_session.write(sessID)
             write_session.close()
 
@@ -360,10 +366,8 @@ class alloc(object):
             if len(projects) == 0:
                 self.die("No project found matching: %s" % projectName)
             elif len(projects) > 1 and die:
-                self.print_table(
-                    "project", projects, ["projectID", "projectName"])
-                self.die("Found more than one project matching: %s" %
-                         projectName)
+                self.print_table("project", projects, ["projectID", "projectName"])
+                self.die("Found more than one project matching: %s" % projectName)
             elif len(projects) > 1 and not die:
                 return list(projects.keys())
             elif len(projects) == 1:
@@ -377,10 +381,8 @@ class alloc(object):
             if not tasks:
                 self.die("No task found matching: %s" % ops["taskName"])
             elif tasks and len(tasks) > 1:
-                self.print_table(
-                    "task", tasks, ["taskID", "taskName", "projectName"])
-                self.die("Found more than one task matching: %s" %
-                         ops["taskName"])
+                self.print_table("task", tasks, ["taskID", "taskName", "projectName"])
+                self.die("Found more than one task matching: %s" % ops["taskName"])
             elif len(tasks) == 1:
                 return list(tasks.keys())[0]
 
@@ -393,8 +395,7 @@ class alloc(object):
                 self.die("No client found matching: %s" % ops["clientName"])
             elif clients and len(clients) > 1:
                 self.print_table("client", clients, ["clientID", "clientName"])
-                self.die("Found more than one client matching: %s" %
-                         ops["clientName"])
+                self.die("Found more than one client matching: %s" % ops["clientName"])
             elif len(clients) == 1:
                 return list(clients.keys())[0]
 
@@ -402,104 +403,135 @@ class alloc(object):
         """Coerce a dict with perhaps missing keys or a value of None to an empty string."""
         r = defaultdict(str)
         for a, b in row.items():
-            r[a] = b or ''
+            r[a] = b or ""
         return r
 
     def print_task(self, taskID, prependEmailHeader=False, children=False):
         """Return a plaintext view of a task and its details."""
         rtn = self.get_list(
-            'task', {'taskID': taskID, 'taskView': 'prioritised', 'showTimes': True})
+            "task", {"taskID": taskID, "taskView": "prioritised", "showTimes": True}
+        )
 
         if not rtn:
             self.die("No task found with ID: " + str(taskID))
 
-        final_str = ''
+        final_str = ""
         for k, r in rtn.items():
-            del(k)
+            del k
             r = self.sloppydict(r)
 
-            h = ''
+            h = ""
             if prependEmailHeader:
-                d = datetime.datetime.strptime(
-                    r['dateCreated'], '%Y-%m-%d %H:%M:%S')
+                d = datetime.datetime.strptime(r["dateCreated"], "%Y-%m-%d %H:%M:%S")
                 h = "From allocPSA " + d.strftime("%a %b  %d %H:%M:%S %Y")
-                h += "\nX-Alloc-Task: " + r['taskName']
-                h += "\nX-Alloc-TaskID: " + r['taskID']
-                h += "\nX-Alloc-Project: " + r['projectName']
-                h += "\nX-Alloc-ProjectID: " + r['projectID']
-                h += "\nSubject: " + \
-                    r['taskID'] + " " + r['taskName'] + \
-                    " [" + r['priorityLabel'] + "] "
+                h += "\nX-Alloc-Task: " + r["taskName"]
+                h += "\nX-Alloc-TaskID: " + r["taskID"]
+                h += "\nX-Alloc-Project: " + r["projectName"]
+                h += "\nX-Alloc-ProjectID: " + r["projectID"]
+                h += (
+                    "\nSubject: "
+                    + r["taskID"]
+                    + " "
+                    + r["taskName"]
+                    + " ["
+                    + r["priorityLabel"]
+                    + "] "
+                )
                 h += "\n"
 
             underline_length = len(
-                r['taskTypeID'] + ': ' + r['taskID'] + ' ' + r['taskName'])
+                r["taskTypeID"] + ": " + r["taskID"] + " " + r["taskName"]
+            )
 
-            s = '\n' + r['taskTypeID'] + ': ' + \
-                r['taskID'] + ' ' + r['taskName']
-            s += '\n'.ljust(underline_length + 1, '=')
-            s += '\n'
-            if r['priorityLabel']:
-                s += '\n' + 'Priority: ' + \
-                    r['priorityLabel'].ljust(26) + r['taskStatusLabel']
-            s += '\n'
-            if r['projectName']:
-                s += '\nProject: ' + r['projectName']
-            if 'projectPriorityLabel' in r and r['projectPriorityLabel']:
-                s += ' [' + r['projectPriorityLabel'] + ']'
-            if r['parentTaskID']:
-                s += '\nParent Task: ' + r['parentTaskID']
-            if r['projectName'] or r['parentTaskID']:
-                s += '\n'
-            if r['creator_name']:
-                s += '\nCreator:  ' + \
-                    r['creator_name'].ljust(25) + ' ' + r['dateCreated']
-            if r['assignee_name']:
-                s += '\nAssigned: ' + \
-                    r['assignee_name'].ljust(25) + ' ' + r['dateAssigned']
-            if r['manager_name']:
-                s += '\nManager:  ' + r['manager_name'].ljust(25)
-            if r['dateClosed']:
-                s += '\nCloser:   ' + \
-                    r['closer_name'].ljust(25) + ' ' + r['dateClosed']
-            s += '\n'
-            s += '\nB/E/W Estimates:  ' + \
-                (r['timeBestLabel'] or '--') + ' / ' + \
-                (r['timeExpectedLabel'] or '--')
-            s += ' / ' + (r['timeWorstLabel'] or '--') + \
-                '  ' + (r['estimator_name'] or '')
-            s += '\nActual/Limit Hrs: %s / %s ' % (
-                r['timeActualLabel'] or '--', r['timeLimitLabel'] or '--')
-            s += '\n'
+            s = "\n" + r["taskTypeID"] + ": " + r["taskID"] + " " + r["taskName"]
+            s += "\n".ljust(underline_length + 1, "=")
+            s += "\n"
+            if r["priorityLabel"]:
+                s += (
+                    "\n"
+                    + "Priority: "
+                    + r["priorityLabel"].ljust(26)
+                    + r["taskStatusLabel"]
+                )
+            s += "\n"
+            if r["projectName"]:
+                s += "\nProject: " + r["projectName"]
+            if "projectPriorityLabel" in r and r["projectPriorityLabel"]:
+                s += " [" + r["projectPriorityLabel"] + "]"
+            if r["parentTaskID"]:
+                s += "\nParent Task: " + r["parentTaskID"]
+            if r["projectName"] or r["parentTaskID"]:
+                s += "\n"
+            if r["creator_name"]:
+                s += (
+                    "\nCreator:  "
+                    + r["creator_name"].ljust(25)
+                    + " "
+                    + r["dateCreated"]
+                )
+            if r["assignee_name"]:
+                s += (
+                    "\nAssigned: "
+                    + r["assignee_name"].ljust(25)
+                    + " "
+                    + r["dateAssigned"]
+                )
+            if r["manager_name"]:
+                s += "\nManager:  " + r["manager_name"].ljust(25)
+            if r["dateClosed"]:
+                s += "\nCloser:   " + r["closer_name"].ljust(25) + " " + r["dateClosed"]
+            s += "\n"
+            s += (
+                "\nB/E/W Estimates:  "
+                + (r["timeBestLabel"] or "--")
+                + " / "
+                + (r["timeExpectedLabel"] or "--")
+            )
+            s += (
+                " / "
+                + (r["timeWorstLabel"] or "--")
+                + "  "
+                + (r["estimator_name"] or "")
+            )
+            s += "\nActual/Limit Hrs: %s / %s " % (
+                r["timeActualLabel"] or "--",
+                r["timeLimitLabel"] or "--",
+            )
+            s += "\n"
 
-            if r['dateTargetStart'] or r['dateTargetCompletion']:
-                s += '\nTarget Start: %-18s Target Completion: %-18s ' % (
-                    r['dateTargetStart'], r['dateTargetCompletion'])
-            if r['dateActualStart'] or r['dateActualCompletion']:
-                s += '\nActual Start: %-18s Actual Completion: %-18s ' % (
-                    r['dateActualStart'], r['dateActualCompletion'])
+            if r["dateTargetStart"] or r["dateTargetCompletion"]:
+                s += "\nTarget Start: %-18s Target Completion: %-18s " % (
+                    r["dateTargetStart"],
+                    r["dateTargetCompletion"],
+                )
+            if r["dateActualStart"] or r["dateActualCompletion"]:
+                s += "\nActual Start: %-18s Actual Completion: %-18s " % (
+                    r["dateActualStart"],
+                    r["dateActualCompletion"],
+                )
 
-            if r['taskDescription']:
-                s += '\n'
-                s += '\nDescription'
-                s += '\n-----------'
-                s += '\n'
+            if r["taskDescription"]:
+                s += "\n"
+                s += "\nDescription"
+                s += "\n-----------"
+                s += "\n"
                 # s += '\n'.join(wrap(r['taskDescription'], 75))+'\n' # this
                 # seems to not work very well.
-                s += '\n' + r['taskDescription']
+                s += "\n" + r["taskDescription"]
 
-            if children and r['taskTypeID'] == 'Parent':
+            if children and r["taskTypeID"] == "Parent":
                 tasks = self.get_list(
-                    'task', {'parentTaskID': r['taskID'], 'taskView': 'byProject'})
+                    "task", {"parentTaskID": r["taskID"], "taskView": "byProject"}
+                )
                 # print_table doesn't work here because the output of this is printed out of the return value.
                 # self.print_table("task", tasks, ["taskID", "taskName"])
-                s += '\nChild Tasks:\n\n'
+                s += "\nChild Tasks:\n\n"
                 # For CSV output this might need to do something saner
                 # on the other hand, view doesn't work right with CSV anyway
                 for c in tasks.values():
-                    s += '%s %s\n' % (c['taskID'], c['taskName'])
+                    s += "%s %s\n" % (c["taskID"], c["taskName"])
 
-            s += '\n\n'
+            s += "\n\n"
             final_str += h + s
         return final_str
 
@@ -560,15 +592,15 @@ class alloc(object):
 
     def get_credentials(self):
         """Obtain user's alloc login and http auth credentials."""
-        con_u = self.config.get('alloc_user')
-        con_p = self.config.get('alloc_pass')
-        con_hu = self.config.get('alloc_http_user')
-        con_hp = self.config.get('alloc_http_pass')
+        con_u = self.config.get("alloc_user")
+        con_p = self.config.get("alloc_pass")
+        con_hu = self.config.get("alloc_http_user")
+        con_hp = self.config.get("alloc_http_pass")
 
         try:
             net = netrc().hosts[urlparse(self.url).hostname]
         except Exception:
-            net = ('', '', '')
+            net = ("", "", "")
 
         net_u = net[0]
         net_p = net[2]
@@ -581,10 +613,18 @@ class alloc(object):
         hu = con_hu or net_hu
         hp = con_hp or net_hp
 
-        self.dbg("USING CONF: user:" + str(u) + " pass:" + str(p) +
-                 " httpuser:" + str(hu) + " httppass:" + str(hp))
+        self.dbg(
+            "USING CONF: user:"
+            + str(u)
+            + " pass:"
+            + str(p)
+            + " httpuser:"
+            + str(hu)
+            + " httppass:"
+            + str(hp)
+        )
 
-        if u is None or u == '' or p is None or p == '':
+        if u is None or u == "" or p is None or p == "":
             self.err("The settings ALLOC_USER and ALLOC_PASS are required.")
             self.err("The settings ALLOC_HTTP_USER and ALLOC_HTTP_PASS are optional.")
             self.err("Set any of them either in the environment as shell variables,")
@@ -593,7 +633,7 @@ class alloc(object):
 
     def get_list(self, entity, options):
         """The canonical method of retrieving a list of entities from alloc."""
-        options["skipObject"] = '1'
+        options["skipObject"] = "1"
         options["return"] = "array"
         args = {}
         args["entity"] = entity
@@ -604,10 +644,15 @@ class alloc(object):
     def authenticate(self):
         """Perform an authentication against the alloc server."""
         self.dbg("calling authenticate()")
-        self.username, self.password, self.http_username, self.http_password = self.get_credentials()
+        self.username, self.password, self.http_username, self.http_password = (
+            self.get_credentials()
+        )
         self.initialize_http_connection()
-        args = {"authenticate": True, "username": self.username,
-                "password": self.password}
+        args = {
+            "authenticate": True,
+            "username": self.username,
+            "password": self.password,
+        }
         if not self.sessID:
             self.dbg("ATTEMPTING AUTHENTICATION.")
             rtn = self.make_request(args)
@@ -630,35 +675,41 @@ class alloc(object):
             self.err(str(e))
             self.err("Possibly a bad username or password for HTTP AUTH")
             self.err("The settings ALLOC_HTTP_USER and ALLOC_HTTP_PASS are required.")
-            self.die("Set them either in the shell environment or in your ~/.alloc/config")
+            self.die(
+                "Set them either in the shell environment or in your ~/.alloc/config"
+            )
         except Exception as e:
             self.die(str(e))
 
         args["client_version"] = self.client_version
         args["sessID"] = self.sessID
-        rtn = urllib.request.urlopen(self.url, urllib.parse.urlencode(args).encode("utf8")).read()
+        rtn = urllib.request.urlopen(
+            self.url, urllib.parse.urlencode(args).encode("utf8")
+        ).read()
         try:
             rtn = simplejson.loads(rtn)
         except Exception:
             self.err("Error(1): %s" % rtn)
-            if args and 'password' in args:
-                args['password'] = '********'
+            if args and "password" in args:
+                args["password"] = "********"
             self.die("Args: %s" % args)
 
         # Handle session expiration by re-authenticating
-        if rtn and 'reauthenticate' in rtn and 'authenticate' not in args:
+        if rtn and "reauthenticate" in rtn and "authenticate" not in args:
             self.dbg("Session dead, reauthenticating.")
-            self.sessID = ''
+            self.sessID = ""
             self.authenticate()
-            args['sessID'] = self.sessID
+            args["sessID"] = self.sessID
             self.dbg("executing: %s" % args)
-            rtn2 = urllib.request.urlopen(self.url, urllib.parse.urlencode(args).encode("utf8")).read()
+            rtn2 = urllib.request.urlopen(
+                self.url, urllib.parse.urlencode(args).encode("utf8")
+            ).read()
             try:
                 return simplejson.loads(rtn2)
             except Exception:
                 self.err("Error(2): %s" % rtn2)
-                if args and 'password' in args:
-                    args['password'] = '********'
+                if args and "password" in args:
+                    args["password"] = "********"
                 self.die("Args: %s" % args)
         return rtn
 
@@ -703,74 +754,89 @@ class alloc(object):
     def dbg(self, s):
         """Print a message to the screen (stdout) for debugging only."""
         if self.debug:
-            sys.stderr.write("DBG " + str(s) + '\n')
+            sys.stderr.write("DBG " + str(s) + "\n")
 
     def parse_email(self, email):
         """Parse an email address from this: Jon Smit <js@example.com> into: addr, name."""
-        addr = ''
-        name = ''
-        bits = email.split(' ')
+        addr = ""
+        name = ""
+        bits = email.split(" ")
 
         if len(bits) == 1:
-            if '@' in bits[0]:
-                addr = bits[0].replace('<', '').replace('>', '')
+            if "@" in bits[0]:
+                addr = bits[0].replace("<", "").replace(">", "")
             else:
                 name = bits[0]
 
         elif len(bits) > 1:
-
-            if '@' in bits[-1:][0]:
-                addr = bits[-1:][0].replace('<', '').replace('>', '')
-                name = ' '.join(bits[:-1])
+            if "@" in bits[-1:][0]:
+                addr = bits[-1:][0].replace("<", "").replace(">", "")
+                name = " ".join(bits[:-1])
             else:
-                name = ' '.join(bits)
+                name = " ".join(bits)
 
         return addr, name
 
     def handle_server_response(self, rtn, verbose):
         """If server returns a message, print it out"""
-        if rtn and 'status' in rtn and 'message' in rtn:
+        if rtn and "status" in rtn and "message" in rtn:
             if isinstance(rtn["status"], list):
                 k = 0
                 for v in rtn["status"]:
-                    if (v == 'msg' and verbose) or (v == 'yay' and verbose) or v == 'err' or v == 'die':
+                    if (
+                        (v == "msg" and verbose)
+                        or (v == "yay" and verbose)
+                        or v == "err"
+                        or v == "die"
+                    ):
                         meth = getattr(self, v)
-                        meth(rtn['message'][k])
+                        meth(rtn["message"][k])
                     k += 1
             else:
-                meth = getattr(self, rtn['status'])
-                meth(rtn['message'])
+                meth = getattr(self, rtn["status"])
+                meth(rtn["message"])
 
     def parse_date(self, text):
         """Convert a human readable date string into YYYY-MM-DD format."""
         if text:
-            prefix = ''
+            prefix = ""
 
             # YYYY-MM-DD
-            if re.match(r'^\d{4}-\d{1,2}-\d{1,2}$', text):
+            if re.match(r"^\d{4}-\d{1,2}-\d{1,2}$", text):
                 return text
 
             # YYYY-MM-DD HH:MM:SS
-            if re.match(r'^\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}$', text):
+            if re.match(r"^\d{4}-\d{1,2}-\d{1,2} \d{1,2}:\d{1,2}:\d{1,2}$", text):
                 return text
 
             # The date string may be prefixed with a comparator eg >= or != etc.
             # [><=!]some date string
-            m = re.match(r'([><=!]+)(.*)', text)
+            m = re.match(r"([><=!]+)(.*)", text)
             if m:
                 prefix = m.group(1)
                 text = m.group(2)
 
             p = subprocess.Popen(
-                ['date', '-d', text, '+%F'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+                ["date", "-d", text, "+%F"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
             output, errors = p.communicate()
             output = output.strip()
             errors = errors.strip()
-            if re.match(r'^\d{4}-\d{1,2}-\d{1,2}$', output):
+            if re.match(r"^\d{4}-\d{1,2}-\d{1,2}$", output):
                 return prefix + output
             else:
-                self.die("Couldn't convert date: " + text +
-                         " (returned: " + output + " " + errors + ")")
+                self.die(
+                    "Couldn't convert date: "
+                    + text
+                    + " (returned: "
+                    + output
+                    + " "
+                    + errors
+                    + ")"
+                )
         return text
 
     def person_to_personID(self, name):
@@ -784,8 +850,8 @@ class alloc(object):
             if self.is_num(n):
                 r.append(n)
             else:
-                if ' ' in n:
-                    ops['firstName'], ops['surname'] = n.split(" ")
+                if " " in n:
+                    ops["firstName"], ops["surname"] = n.split(" ")
                 else:
                     ops["username"] = n
                 rtn = self.get_list("person", ops)
@@ -794,7 +860,7 @@ class alloc(object):
                         r.append(i)
 
                 # else if they don't want all the records, then error out
-                elif n and n != '%' and n != '*' and n.lower() != 'all':
+                elif n and n != "%" and n != "*" and n.lower() != "all":
                     self.die("Unrecognized username: " + str(n))
 
         return r
@@ -802,15 +868,15 @@ class alloc(object):
     def parse_date_comparator(self, date):
         """Split a comparator and a date eg: '>=2011-10-10' becomes ['>=','2011-10-10']."""
         try:
-            comparator, d = re.findall(r'[\d|-]+|\D+', date)
+            comparator, d = re.findall(r"[\d|-]+|\D+", date)
         except Exception:
-            comparator = '='
+            comparator = "="
             d = date
         return d.strip(), comparator.strip()
 
     def get_alloc_modules(self):
         """Get all the alloc subcommands/modules."""
-        return sys.modules['alloccli'].__all__
+        return sys.modules["alloccli"].__all__
 
     def get_cli_help(self):
         """Get the command line help."""
@@ -818,7 +884,7 @@ class alloc(object):
         print("Select one of the following commands:\n")
 
         for module in self.get_alloc_modules():
-            if module == 'alloc':
+            if module == "alloc":
                 continue
             alloccli = __import__("alloccli." + module)
             subcommand = getattr(getattr(alloccli, module), module)
@@ -833,12 +899,13 @@ class alloc(object):
     def which(self, name, flags=os.X_OK):
         """Search PATH for executable files with the given name."""
         result = []
-        exts = [item for item in os.environ.get(
-            'PATHEXT', '').split(os.pathsep) if item]
-        path = os.environ.get('PATH', None)
+        exts = [
+            item for item in os.environ.get("PATHEXT", "").split(os.pathsep) if item
+        ]
+        path = os.environ.get("PATH", None)
         if path is None:
-            return ''
-        for p in os.environ.get('PATH', '').split(os.pathsep):
+            return ""
+        for p in os.environ.get("PATH", "").split(os.pathsep):
             p = os.path.join(p, name)
             if os.access(p, flags):
                 result.append(p)
@@ -849,11 +916,17 @@ class alloc(object):
         if len(result) >= 1:
             return result[0]
         else:
-            return ''
+            return ""
 
     def possible_fields(self, field_type):
         print("These are the possible fields you can use:\n")
         for item in self.field_names[field_type]:
-            print(item.ljust(25) + "or".ljust(10) + "'" + self.field_names[field_type][item] + "'")
+            print(
+                item.ljust(25)
+                + "or".ljust(10)
+                + "'"
+                + self.field_names[field_type][item]
+                + "'"
+            )
         print("")
         sys.exit()

@@ -1,14 +1,13 @@
 # alloc library for handling command line arguments.
 
-import os
-import sys
-import re
 import argparse
+import os
+import re
+import sys
 from sys import stdout
 
 
 class alloc_cli_arg_handler:
-
     # alloc library for handling command line arguments
 
     def get_subcommand_help(self, command_list, ops, text):
@@ -16,9 +15,9 @@ class alloc_cli_arg_handler:
         help_str = ""
         for line in ops:
             # These are null or spaces to keep things aligned.
-            extra = ''
-            short_opt = (" " * 4)
-            long_opt = (" " * 26)
+            extra = ""
+            short_opt = " " * 4
+            long_opt = " " * 26
 
             if line[0]:
                 short_opt = "  -" + line[0].replace(":", "").replace(".", "")
@@ -28,12 +27,18 @@ class alloc_cli_arg_handler:
 
             # check if it is a repeatable item, e.g.: -f can be used many
             # times.
-            if ':' in line[0]:
-                extra = ' (can repeat)'
+            if ":" in line[0]:
+                extra = " (can repeat)"
 
             # The resulting string should look similar to this:
             #     -q  --quiet             Run with less output.
-            help_str += short_opt + long_opt + line[2].replace("\n", "\n".ljust(31)) + extra + "\n"
+            help_str += (
+                short_opt
+                + long_opt
+                + line[2].replace("\n", "\n".ljust(31))
+                + extra
+                + "\n"
+            )
 
         return text % (os.path.basename(" ".join(command_list[0:2])), help_str.rstrip())
 
@@ -43,13 +48,12 @@ class alloc_cli_arg_handler:
         all_ops = {}
         all_ops_list = []
         for x in ops:
-
             # track which ops don't require an argument eg -q
-            if x[0] and ':' not in x[0] and '.' not in x[0]:
+            if x[0] and ":" not in x[0] and "." not in x[0]:
                 no_arg_ops["-" + x[0]] = True
 
             # or eg --help
-            if ':' not in x[0] and '.' not in x[0] and '=' not in x[1]:
+            if ":" not in x[0] and "." not in x[0] and "=" not in x[1]:
                 no_arg_ops["--" + x[1].strip()] = True
 
             # Handle cases where there is no long arg (eg -t in alloc edit)
@@ -60,12 +64,16 @@ class alloc_cli_arg_handler:
 
             # And this is used below to build up a dictionary to return
             all_ops[key] = [
-                "-" + x[0].replace(":", "").replace(".", ""), "--" + key, x[0]]
+                "-" + x[0].replace(":", "").replace(".", ""),
+                "--" + key,
+                x[0],
+            ]
 
             # This is a flat list, so eg [-q, --quiet] will be separate entries
             if x[0].strip():
                 all_ops_list.append(
-                    "-" + x[0].replace(":", "").replace(".", "").strip())
+                    "-" + x[0].replace(":", "").replace(".", "").strip()
+                )
             if x[1].strip():
                 all_ops_list.append("--" + re.sub("=.*$", "", x[1]).strip())
 
@@ -77,43 +85,47 @@ class alloc_cli_arg_handler:
         rtn = {}
 
         # For interrogation of a command's potential arguments
-        ops.append(
-            ('', 'list-option    ', 'List all options in a single column.'))
+        ops.append(("", "list-option    ", "List all options in a single column."))
 
         # The options parser cannot handle long args that have optional parameters
         # If --csv is used without an argument, replace it with --csv=always
-        if '--csv' in command_list:
-            idx = command_list.index('--csv')
-            if len(command_list) > idx + 1 and command_list[idx + 1] in ['always', 'never', 'auto']:
-                command_list[idx] = '--csv=' + command_list[idx + 1]
+        if "--csv" in command_list:
+            idx = command_list.index("--csv")
+            if len(command_list) > idx + 1 and command_list[idx + 1] in [
+                "always",
+                "never",
+                "auto",
+            ]:
+                command_list[idx] = "--csv=" + command_list[idx + 1]
                 del command_list[idx + 1]
             else:
-                command_list[idx] = '--csv=always'
+                command_list[idx] = "--csv=always"
 
         no_arg_ops, all_ops, all_ops_list = self.__parse_args(ops)
         parser = argparse.ArgumentParser(
-            prog=os.path.basename(" ".join(sys.argv[0:2])), add_help=False)
+            prog=os.path.basename(" ".join(sys.argv[0:2])), add_help=False
+        )
 
         # FIXME:: this is not very nice to read, add explainations at some point.
         for k, v in all_ops.items():
             a1 = []
             a2 = {}
-            a2['dest'] = k
-            if ':' in v[2]:
-                a2['default'] = []
-                a2['action'] = 'append'
-            elif '.' in v[2]:
-                a2['default'] = ''
-                a2['action'] = 'store'
+            a2["dest"] = k
+            if ":" in v[2]:
+                a2["default"] = []
+                a2["action"] = "append"
+            elif "." in v[2]:
+                a2["default"] = ""
+                a2["action"] = "store"
 
-            if v[0] != '-':
+            if v[0] != "-":
                 a1.append(v[0])
-            if v[1] != '--':
+            if v[1] != "--":
                 a1.append(v[1])
 
             if v[0] in no_arg_ops or v[1] in no_arg_ops:
-                a2['action'] = 'store_true'
-                a2['default'] = False
+                a2["action"] = "store_true"
+                a2["default"] = False
 
             parser.add_argument(*a1, **a2)
 
@@ -125,22 +137,22 @@ class alloc_cli_arg_handler:
             rtn[opt] = val
 
         # If --help print help and die
-        if rtn['help']:
+        if rtn["help"]:
             print(self.get_subcommand_help(command_list, ops, s))
             sys.exit(0)
 
         # If --list-option print options and die
-        if 'list-option' in rtn and rtn['list-option']:
+        if "list-option" in rtn and rtn["list-option"]:
             for opt in all_ops_list:
                 print(opt)
             sys.exit(0)
 
         # If --csv tell the alloc object about it
-        if 'csv' in rtn and rtn['csv']:
+        if "csv" in rtn and rtn["csv"]:
             alloc.csv = True
-            if rtn['csv'] == 'auto' and stdout.isatty():
+            if rtn["csv"] == "auto" and stdout.isatty():
                 alloc.csv = False
-            if rtn['csv'] == 'never':
+            if rtn["csv"] == "never":
                 alloc.csv = False
         elif not stdout.isatty():
             alloc.csv = True

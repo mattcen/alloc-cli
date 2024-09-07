@@ -2,15 +2,15 @@
 
 from .alloc import alloc
 
-class view(alloc):
 
+class view(alloc):
     """View an entity."""
 
     # Setup the options that this cli can accept
     ops = []
-    ops.append(('', 'help             ', 'Show this help.'))
-    ops.append(('t:', 'task=ID        ', 'An existing task\'s ID.'))
-    ops.append(('c', 'children        ', 'Show children for tasks.'))
+    ops.append(("", "help             ", "Show this help."))
+    ops.append(("t:", "task=ID        ", "An existing task's ID."))
+    ops.append(("c", "children        ", "Show children for tasks."))
 
     # Specify some header and footer text for the help text
     help_text = "Usage: %s [OPTIONS]\n"
@@ -25,7 +25,6 @@ Examples:
 alloc view --task 1234"""
 
     def run(self, command_list):
-
         """Execute subcommand."""
 
         # Get the command line arguments into a dictionary
@@ -34,5 +33,5 @@ alloc view --task 1234"""
         # Got this far, then authenticate
         self.authenticate()
 
-        if o['task']:
-            print(self.print_task(o['task'], children=o['children']))
+        if o["task"]:
+            print(self.print_task(o["task"], children=o["children"]))
