@@ -2,6 +2,7 @@
 
 import configparser
 import datetime
+import getpass
 import os
 import re
 import subprocess
@@ -10,9 +11,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from collections import defaultdict
-from netrc import netrc
 from urllib.parse import urlparse
 
+import pypass
 import simplejson
 
 from .alloc_cli_arg_handler import alloc_cli_arg_handler
@@ -598,7 +599,14 @@ class alloc(object):
         con_hp = self.config.get("alloc_http_pass")
 
         try:
-            net = netrc().hosts[urlparse(self.url).hostname]
+            net = (
+                getpass.getuser(),
+                "",
+                pypass.PasswordStore().get_decrypted_password(
+                    f"{getpass.getuser()}@{urlparse(self.url).hostname}",
+                    entry=pypass.EntryType.password,
+                ),
+            )
         except Exception:
             net = ("", "", "")
 
